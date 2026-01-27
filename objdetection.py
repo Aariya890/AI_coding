@@ -62,15 +62,66 @@ def infer(image_bytes, retries=8):
     
     raise RuntimeError(f"Inference warm-up timeout.")
 
-def draw_boxes(image, detection, threshold=0.5):
+def draw_boxes(image, detections, threshold=0.5):
     draw = ImageDraw.Draw(image)
     font = load_font()
     summary = {}
 
     for det in detections:
-        score = float(det.get("score"), 0)
+        score = float(det.get("score", 0))
         if score < threshold:
             continue
 
-        label = det.get("image", "object")
-        
+        label = det.get("label", "object")
+        box = det.get("box", {})
+
+        x1 = int(box.get("xmin", 0))
+        y1 = int(box.get("ymin", 0))
+        x2 = int(box.get("xmax", 0)) 
+        y2 = int(box.get("ymax", 0))
+
+        color = tuple(random.randint(80, 255) for _ in range(3))
+        draw.rectangle([(x1, y1), (x2, y2)], outline=color, width=4)
+
+        text = f"{label} {int(score * 100)}%"
+        tw = draw.textlength(text, font=font)
+        th = font.size + 6
+
+        draw.rectangle([(x1, y1 - th), (x1 + tw + 8, y1)], fill=color)
+        draw.text((x1 + 4, y1 - th + 3), text, font=font, fill=(0, 0, 0))
+
+        summary[label] = summary.get(label, 0) + 1
+
+    return summary
+
+def main():
+    image_path = ask_image()
+
+    with open(image_path, "rb") as f:
+        image_bytes = f.read()
+    
+    try:
+        detections = infer(image_bytes)
+    except Exception as e:
+        print("Inference failed.", e)
+        return
+    
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    summary = draw_boxes(image, detections)
+
+    output = f"annotated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    image.save(output)
+
+    print(f"\nAnnotated image saved: {output}")
+
+    if summary:
+        print("\nDetected objects:")
+        for label, count in sorted(summary.items(), key=lambda x: -x[1]):
+            print(f"{label} : {count}")
+    else:
+        print("No confident detections found.")
+
+    print("\nDisclaimer: Results are AI-generated and may be imperfect.")
+
+if __name__  == "__main__":
+    main()
