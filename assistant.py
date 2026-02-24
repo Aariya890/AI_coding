@@ -1,98 +1,98 @@
 import speech_recognition as sr
 import pyttsx3
-import datetime
+from deep_translator import GoogleTranslator
+from colorama import Fore, init
 import time
-import webbrowser
-import os
 
-engine = pyttsx3.init()
-engine.setProperty("rate", 145)
+init(autoreset=True)
 
-listener = sr.Recognizer()
+# Initialize speech engine
+engine = pyttsx3.init('sapi5')
+engine.setProperty('rate', 150)
+engine.setProperty('volume', 1.0)
 
-tasks = []
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[0].id)
+
+recognizer = sr.Recognizer()
+
+languages = {
+    "spanish": "es",
+    "arabic": "ar",
+    "korean": "ko",
+    "japanese": "ja",
+    "german": "de"
+}
 
 def speak(text):
-    print("Assistant: ", text)
     engine.say(text)
     engine.runAndWait()
-    time.sleep(0.3)
+    time.sleep(0.5)
 
 def listen():
     with sr.Microphone() as source:
-        listener.adjust_for_ambient_noise(source, duration=0.4)
-        audio = listener.listen(source)
+        recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        audio = recognizer.listen(source)
 
     try:
-        command = listener.recognize_google(audio)
-        print("User: ", command)
-        return command.lower()
+        return recognizer.recognize_google(audio, language="en-US").lower()
     except:
         return ""
-    
-def add_task(task):
-    tasks.append(tasks)
-    return "Task added succesfully."
 
-def list_tasks():
-    if not tasks:
-          return "You have no tasks."
-    return "Your tasks are:" + ", ".join(tasks)
+def select_language():
+    speak("Please say your target language. Spanish, Arabic, Korean, Japanese, or German.")
+    print(Fore.CYAN + "\nListening for language selection...")
 
-def clear_tasks():
-    tasks.clear()
-    return "All tasks are cleared."
+    spoken_lang = listen()
 
-def generate_reply(command):
+    print(Fore.YELLOW + f"Detected: {spoken_lang}")
 
-    if "exit" in command or "stop" in command:
-        speak("Session terminated. Have a nice day.")
-        exit()
-
-    if "time" in command:
-        return datetime.datetime.now().strftime("Current time is %I:%M %p.")
-    
-    if "date" in command:
-        return datetime.datetime.now().strftime("Today's date is %B %d, %Y.")
-    
-    if "add task" in command:
-        task = command.replace("search", "").strip()
-        if task:
-            return add_task(task)
-        return "Please say the task name."
-    
-    if "list tasks" in command:
-        return list_tasks()
-
-    if "clear tasks" in command:
-        return clear_tasks()
-
-    if "search" in command:
-        query = command.replace("search", "").strip()
-        if query:
-            webbrowser.open(f"https://www.google.com/search?q={query}")
-            return f"Searching for {query}"
-        return "Please say what you want to search."
-    
-    if "open youtube" in command:
-            webbrowser.open(f"https://youtube.com")
-            return "Opening Youtube."
-    
-    if "open google" in command:
-            webbrowser.open(f"https://google.com")
-            return "Opening Google."
-    
-
-    return "Command not recognised. Please try again."
+    return languages.get(spoken_lang)
 
 def main():
-     speak("Smart assistant is ready. Awaiting your command.")
 
-     while True:
-        command = listen()
-        if command:
-            reply = generate_reply(command)
-            speak(reply)
+    print(Fore.GREEN + "\nVoice Translation Assistant Activated\n")
+    speak("Voice translation system activated.")
+
+    while True:
+
+        target_language = select_language()
+
+        if not target_language:
+            speak("Invalid language detected. Please try again.")
+            continue
+
+        translator = GoogleTranslator(source="en", target=target_language)
+
+        speak("Language selected. You may now speak your sentence.")
+
+        while True:
+
+            print(Fore.CYAN + "\nListening...")
+            sentence = listen()
+
+            if not sentence:
+                speak("I did not catch that. Please repeat.")
+                continue
+
+            print(Fore.YELLOW + f"You said: {sentence}")
+
+            if "exit" in sentence:
+                speak("System shutdown completed.")
+                return
+
+            if "change language" in sentence:
+                speak("Switching language.")
+                break
+
+            try:
+                translated = translator.translate(sentence)
+                print(Fore.MAGENTA + f"Translated Output: {translated}")
+                speak(translated)
+
+            except Exception as e:
+                print(Fore.RED + f"Translation error: {e}")
+                speak("Processing error occurred.")
 
 if __name__ == "__main__":
     main()
