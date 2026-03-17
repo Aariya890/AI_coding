@@ -1,82 +1,61 @@
 from groq import generate_response
+import re
+import streamlit as st
 
 
-def bias_mitigation_activity():
-    print("\n=== BIAS MITIGATION ACTIVITY ===\n")
+def looks_incomplete(text: str) -> bool:
+    if not text or len(text.strip()) < 10:
+        return True
+    t = text.strip()
+    if t.endswith("**", "*", "-", "—", ":", ",", "(", "{", "["):
+        return True
+    if re.search(r"\d+\.\s*\*\*$", t):
+        return True
+    if not re.search(r"[.!?]\s*$", t):
+        return True
+    return False
 
-    prompt = input("Enter a prompt to explore bias (e.g., 'Describe the ideal doctor'): ").strip()
 
-    if not prompt:
-        print("Please enter a prompt to run the activity.")
-        return
+def complete_answer(question: str, max_rounds: int= 2) -> str:
+    base_prompt = (
+        "Answer clearly in number points."
+        "Do not cut sentences. Finish each point fully.\n\n"
+        f"Question: {question}"
+    )
 
-    try:
-        initial_response = generate_response(prompt, temperature=0.3, max_tokens=1024)
-        print(f"\nInitial AI response:\n{initial_response}")
-    except Exception as e:
-        print("Error generating response:", e)
-        return
+    ans = generate_response(base_prompt, temperature=0.3, max_tokens=1024)
 
-    modified_prompt = input(
-        "\nModify the prompt to make it more neutral (e.g., 'Describe the qualities of a doctor'): "
-    ).strip()
+    rounds = 0
+    while rounds < max_rounds and looks_incomplete(ans):
+        cont_prompt = (
+            "Continue EXACTLY from where you stopped."
+            "Do NOT repeat earlier text."
+            "Finish the incomplete point and complete the answer.\n\n"
+            f"Question: {question}\n\n"
+            f"Answer so far:\n{ans}\n\nContinue: "
+        )
+        more = generate_response(cont_prompt, temperature=0.3, max_tokens=1024)
+        if not more or more.strip() in ans:
+            break
+        ans = (ans.rstrip() + "\n" + more.lstrip()).strip()
+        rounds += 1
 
-    if modified_prompt:
-        try:
-            modified_response = generate_response(modified_prompt, temperature=0.3, max_tokens=1024)
-            print(f"\nModified AI response (Neutral):\n{modified_response}")
-        except Exception as e:
-            print("Error generating modified response:", e)
+    return ans
+
+
+def  main():
+    st.title("AI Teaching Assistant")
+    st.write("Welcome! You can ask me about various subjects, and I'll provide the answer.")
+
+    user_input = st.text_input("Enter your question here: ")
+
+    if user_input:
+        st.write(f"**Your question** : {user_input}")
+        response = complete_answer(user_input)
+        st.write("**AI's answer**: ")
+        st.markdown(response)
     else:
-        print("No modified prompt entered. Skipping neutral response.")
-
-
-def token_limit_activity():
-    print("\n=== TOKEN LIMIT ACTIVITY ===\n")
-
-    long_prompt = input(
-        "Enter a long prompt (more than 300 words, e.g., a detailed story or description): "
-    ).strip()
-
-    if long_prompt:
-        try:
-            long_response = generate_response(long_prompt, temperature=0.3, max_tokens=1024)
-
-            preview = (long_response[:500] + "...") if len(long_response) > 500 else long_response
-            print(f"\nResponse to long prompt:\n{preview}")
-
-        except Exception as e:
-            print("Error generating response:", e)
-    else:
-        print("No long prompt entered. Skipping long prompt response.")
-
-    short_prompt = input("\nNow, condense the prompt to be more concise: ").strip()
-
-    if short_prompt:
-        try:
-            short_response = generate_response(short_prompt, temperature=0.3, max_tokens=1024)
-            print(f"\nResponse to condensed prompt:\n{short_response}")
-        except Exception as e:
-            print("Error generating condensed response:", e)
-    else:
-        print("No condensed prompt entered. Skipping condensed prompt response.")
-
-
-def run_activity():
-    print("\n=== AI Learning Activity ===")
-    print("Choose an activity:")
-    print("1) Bias Mitigation")
-    print("2) Token Limit")
-
-    choice = input("> ").strip()
-
-    if choice == "1":
-        bias_mitigation_activity()
-    elif choice == "2":
-        token_limit_activity()
-    else:
-        print("Invalid choice. Please choose 1 or 2.")
-
+        st.info("Please enter a question to ask.")
 
 if __name__ == "__main__":
-    run_activity()
+    main()
